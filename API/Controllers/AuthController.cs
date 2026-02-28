@@ -59,11 +59,4 @@ public class AuthController : ControllerBase
         return Ok(new TokenResponse(newAccess, newRefresh));
     }
 
-    [HttpPost("revoke")]
-    public async Task<IActionResult> Revoke([FromBody] RefreshRequest req)
-    {
-        var revoked = await _tokenService.RevokeRefreshTokenAsync(req.RefreshToken);
-        if (!revoked) return BadRequest("Token not found or already revoked");
-        return NoContent();
-    }
 }

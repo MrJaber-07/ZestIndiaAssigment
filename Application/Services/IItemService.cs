@@ -1,15 +1,15 @@
-﻿using Application.ViewModels.Product;
-using Domain.Entities;
+﻿using Application.DTOs.Item;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 
 namespace Application.Services
 {
     public interface IItemService
     {
-        Task<IEnumerable<Item>> GetAllAsync();
-        Task<Item?> GetByIdAsync(int id);
-        Task<Item> CreateAsync(ProductRequest request);
-        Task<Item> UpdateAsync(int id, ProductRequest request);
+        Task<IEnumerable<ItemResponse>> GetAllAsync();
+        Task<ItemResponse?> GetByIdAsync(int id);
+        Task<ItemResponse?> CreateAsync(ItemRequest request);
+        Task<ItemResponse?> UpdateAsync(int id, ItemRequest request);
         Task<bool> DeleteAsync(int id);
     }
 }

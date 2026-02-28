@@ -1,25 +1,10 @@
 using API.Extensions;
-using Application.Repositories;
-using FluentValidation.AspNetCore;
 using Infrastructure.Data;
 using Infrastructure.Extensions;
-using Infrastructure.Repositories;
 using Infrastructure.Security.Entities;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
-using Serilog.Events;
-
-
-//Log.Logger = new LoggerConfiguration()
-//    .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
-//    .MinimumLevel.Debug()
-//    .Enrich.FromLogContext()
-//    .WriteTo.Console(restrictedToMinimumLevel: LogEventLevel.Debug)
-//    .WriteTo.File(Path.Combine(AppContext.BaseDirectory, "Logs", "nxt_logs_.txt"),
-//                  rollingInterval: RollingInterval.Day,
-//                  restrictedToMinimumLevel: LogEventLevel.Information)
-//    .CreateLogger();
 
 try
 {
@@ -27,12 +12,9 @@ try
 
     var builder = WebApplication.CreateBuilder(args);
 
-    builder.Host.UseSerilog();
-
     builder.Services.AddDbContext<ApplicationDbContext>(options =>
         options.UseSqlServer(builder.Configuration.GetConnectionString("SqlServerConnection")));
 
-    builder.Services.AddScoped<DbContext>(provider => provider.GetRequiredService<ApplicationDbContext>());
     builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
     {
         options.Password.RequireDigit = true;
@@ -42,62 +24,10 @@ try
         .AddDefaultTokenProviders();
 
     builder.Services.AddInfrastructureJwtAuthentication(builder.Configuration);
-
     builder.Services.AddHttpContextAccessor();
 
-
-    builder.Services.AddScoped<Application.Abstractions.IUnitOfWork, Infrastructure.Persistence.UnitOfWork.UnitOfWork>();
-
-    builder.Services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
-
-    builder.Services.AddScoped<IProductRepository, ProductRepository>();
-    builder.Services.AddAutoMapper(typeof(Program));
-    builder.Services.AddAutoMapper(AppDomain.CurrentDomain.GetAssemblies());
-
-
-
-
     builder.Services.AddEntityServices();
-
     builder.Services.AddControllers();
-    builder.Services.AddFluentValidationAutoValidation();
-    builder.Services.AddFluentValidationClientsideAdapters();
-    builder.Services.AddEndpointsApiExplorer();
-    builder.Services.AddSwaggerGen(options =>
-    {
-        var xmlFile = $"API.xml";
-        var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
-        if (File.Exists(xmlPath))
-        {
-            options.IncludeXmlComments(xmlPath);
-        }
-
-        options.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
-        {
-            Description = "JWT Authorization header using the Bearer scheme. Example: 'Authorization: Bearer {token}'",
-            Name = "Authorization",
-            In = Microsoft.OpenApi.Models.ParameterLocation.Header,
-            Type = Microsoft.OpenApi.Models.SecuritySchemeType.Http,
-            Scheme = "bearer"
-        });
-        options.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement {
-            {
-                new Microsoft.OpenApi.Models.OpenApiSecurityScheme {
-                    Reference = new Microsoft.OpenApi.Models.OpenApiReference {
-                        Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme,
-                        Id = "Bearer"
-                    }
-                },
-                new string[] {}
-            }
-        });
-    });
-
-    builder.Logging.ClearProviders();
-    builder.Logging.AddSerilog();
-    builder.Logging.AddFilter("Microsoft", Microsoft.Extensions.Logging.LogLevel.Warning);
-    builder.Logging.AddFilter("System", Microsoft.Extensions.Logging.LogLevel.Warning);
-    builder.Logging.AddFilter("Microsoft.EntityFrameworkCore.Database.Command", Microsoft.Extensions.Logging.LogLevel.Warning);
 
     var app = builder.Build();
 

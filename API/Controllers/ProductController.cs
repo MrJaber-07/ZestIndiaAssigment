@@ -1,8 +1,6 @@
 ﻿using API.Filters;
-using Application.Abstractions;
+using Application.Services; 
 using Application.ViewModels.Product;
-using AutoMapper;
-using Domain.Entities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -14,28 +12,27 @@ namespace API.Controllers
     [ServiceFilter(typeof(LogActionFilter))]
     public class ProductController : ControllerBase
     {
-        private readonly IUnitOfWork _unitOfWork;
-        private readonly IMapper _mapper;
+        private readonly IProductService _productService;
         private readonly ILogger<ProductController> _logger;
 
-        public ProductController(IUnitOfWork unitOfWork, IMapper mapper, ILogger<ProductController> logger)
+
+        public ProductController(IProductService productService, ILogger<ProductController> logger)
         {
-            _unitOfWork = unitOfWork;
-            _mapper = mapper;
+            _productService = productService;
             _logger = logger;
         }
 
         [HttpGet]
         public async Task<IActionResult> GetAll()
         {
-            var products = await _unitOfWork.Repository<Product>().GetAllAsync();
+            var products = await _productService.GetAllAsync();
             return Ok(products);
         }
 
         [HttpGet("{id}")]
         public async Task<IActionResult> GetById(int id)
         {
-            var product = await _unitOfWork.Repository<Product>().GetByIdAsync(id);
+            var product = await _productService.GetByIdAsync(id);
             if (product == null) return NotFound();
             return Ok(product);
         }
@@ -46,42 +43,32 @@ namespace API.Controllers
         {
             if (input == null) return BadRequest();
 
-            var product = _mapper.Map<Product>(input);
+            var result = await _productService.CreateAsync(input);
 
-            await _unitOfWork.Repository<Product>().AddAsync(product);
-            await _unitOfWork.Commit();
-
-            return CreatedAtAction(nameof(GetById), new { id = product.Id }, product);
+            return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
         }
 
         [HttpPut("{id}")]
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Update(int id, [FromBody] ProductRequest input)
         {
-            var repo = _unitOfWork.Repository<Product>();
-            var existingProduct = await repo.GetByIdAsync(id);
-
-            if (existingProduct == null) return NotFound();
-
-            _mapper.Map(input, existingProduct);
-
-            await repo.UpdateAsync(existingProduct);
-            await _unitOfWork.Commit();
-
-            return Ok(existingProduct);
+            try
+            {
+                var result = await _productService.UpdateAsync(id, input);
+                return Ok(result);
+            }
+            catch (KeyNotFoundException)
+            {
+                return NotFound();
+            }
         }
 
         [HttpDelete("{id}")]
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Delete(int id)
         {
-            var repo = _unitOfWork.Repository<Product>();
-            var existing = await repo.GetByIdAsync(id);
-
-            if (existing == null) return NotFound();
-
-            await repo.DeleteAsync(id);
-            await _unitOfWork.Commit();
+            var success = await _productService.DeleteAsync(id);
+            if (!success) return NotFound();
 
             return NoContent();
         }

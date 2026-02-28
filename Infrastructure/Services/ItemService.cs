@@ -1,73 +1,87 @@
-﻿namespace Infrastructure.Services
+﻿using Application.Abstractions;
+using Application.DTOs.Item;
+using Application.Services;
+using AutoMapper;
+using Domain.Entities;
+using Microsoft.Extensions.Logging;
+
+namespace Infrastructure.Services
 {
-
-    using Application.Repositories;
-    using Application.Services;
-    using Application.ViewModels.Product;
-    using AutoMapper;
-    using Domain.Entities;
-    using Microsoft.Extensions.Logging;
-
-    namespace Infrastructure.Services
+    public class ItemService : IItemService
     {
-        public class ItemService : IItemService
+        private readonly IUnitOfWork _unitOfWork;
+        private readonly IMapper _mapper;
+        private readonly ILogger<ItemService> _logger;
+
+        public ItemService(
+            IUnitOfWork unitOfWork,
+            IMapper mapper,
+            ILogger<ItemService> logger)
         {
-            private readonly IRepository<Item> _itemRepository;
-            private readonly IMapper _mapper;
-            private readonly ILogger<ItemService> _logger;
+            _unitOfWork = unitOfWork;
+            _mapper = mapper;
+            _logger = logger;
+        }
 
-            public ItemService(
-                IRepository<Item> itemRepository,
-                IMapper mapper,
-                ILogger<ItemService> logger)
-            {
-                _itemRepository = itemRepository;
-                _mapper = mapper;
-                _logger = logger;
-            }
+        public async Task<IEnumerable<ItemResponse>> GetAllAsync()
+        {
+            _logger.LogInformation("Fetching all items");
+            var items = await _unitOfWork.Repository<Item>().GetAllAsync();
+            return _mapper.Map<IEnumerable<ItemResponse>>(items);
+        }
 
-            public async Task<IEnumerable<Item>> GetAllAsync()
-            {
-                _logger.LogInformation("Fetching all items");
-                return await _itemRepository.GetAllAsync();
-            }
+        public async Task<ItemResponse?> GetByIdAsync(int id)
+        {
+            // Fixed the logger template syntax
+            _logger.LogInformation("Fetching item with ID: {Id}", id);
+            var item = await _unitOfWork.Repository<Item>().GetByIdAsync(id);
+            return item == null ? null : _mapper.Map<ItemResponse>(item);
+        }
 
-            public async Task<Item?> GetByIdAsync(int id)
-            {
-                _logger.LogInformation($"Fetching item with ID {id}");
-                return await _itemRepository.GetByIdAsync(id);
-            }
+        public async Task<ItemResponse?> CreateAsync(ItemRequest request)
+        {
+            _logger.LogInformation("Creating new item for Product {ProductId}", request.ProductId);
 
-            public async Task<Item> CreateAsync(ProductRequest request)
-            {
-                _logger.LogInformation("Creating new item");
-                var item = _mapper.Map<Item>(request);
-                await _itemRepository.AddAsync(item);
-                return item;
-            }
+            // Business Rule: Ensure parent product exists before creating child item
+            var product = await _unitOfWork.Repository<Product>().GetByIdAsync(request.ProductId);
+            if (product == null) return null;
 
-            public async Task<Item> UpdateAsync(int id, ProductRequest request)
-            {
-                _logger.LogInformation($"Updating item with ID {id}");
-                var item = await _itemRepository.GetByIdAsync(id);
-                if (item == null)
-                    throw new Exception($"Item with ID {id} not found.");
+            var item = _mapper.Map<Item>(request);
+            await _unitOfWork.Repository<Item>().AddAsync(item);
 
-                _mapper.Map(request, item);
-                await _itemRepository.UpdateAsync(item);
-                return item;
-            }
+            await _unitOfWork.Commit();
+            return _mapper.Map<ItemResponse>(item);
+        }
 
-            public async Task<bool> DeleteAsync(int id)
-            {
-                _logger.LogInformation($"Deleting item with ID {id}");
-                var item = await _itemRepository.GetByIdAsync(id);
-                if (item == null) return false;
+        public async Task<ItemResponse?> UpdateAsync(int id, ItemRequest request)
+        {
+            _logger.LogInformation("Updating item with ID {Id}", id);
+            var repo = _unitOfWork.Repository<Item>();
+            var item = await repo.GetByIdAsync(id);
 
-                await _itemRepository.DeleteAsync(item.Id);
-                return true;
-            }
+            if (item == null) return null;
+
+            // Maps the request values onto the existing tracked entity
+            _mapper.Map(request, item);
+
+            await repo.UpdateAsync(item);
+            await _unitOfWork.Commit();
+
+            return _mapper.Map<ItemResponse>(item);
+        }
+
+        public async Task<bool> DeleteAsync(int id)
+        {
+            _logger.LogInformation("Deleting item with ID {Id}", id);
+            var repo = _unitOfWork.Repository<Item>();
+            var item = await repo.GetByIdAsync(id);
+
+            if (item == null) return false;
+
+            await repo.DeleteAsync(item.Id);
+            await _unitOfWork.Commit();
+
+            return true;
         }
     }
-
 }

@@ -1,6 +1,7 @@
 ﻿using API.Filters;
 using Application.Abstractions;
 using Application.DTOs.Item;
+using Application.Services;
 using Domain.Entities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -14,26 +15,25 @@ namespace API.Controllers
     public class ItemController : ControllerBase
     {
         private readonly ILogger<ItemController> _logger;
-        private readonly IUnitOfWork _unitOfWork;
+        private readonly IItemService _itemservice;
 
-        public ItemController(ILogger<ItemController> logger, IUnitOfWork unitOfWork)
+        public ItemController(ILogger<ItemController> logger, IItemService itemservice)
         {
             _logger = logger;
-            _unitOfWork = unitOfWork;
+            _itemservice = itemservice;
         }
 
         [HttpGet]
         public async Task<IActionResult> GetAll()
         {
-
-            var items = await _unitOfWork.Repository<Item>().GetAllAsync();
+            var items = await _itemservice.GetAllAsync();
             return Ok(items);
         }
 
         [HttpGet("{id:int}")]
         public async Task<IActionResult> GetById(int id)
         {
-            var item = await _unitOfWork.Repository<Item>().GetByIdAsync(id);
+            var item = await _itemservice.GetByIdAsync(id);
             if (item == null) return NotFound();
 
             return Ok(item);
@@ -43,57 +43,41 @@ namespace API.Controllers
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Create([FromBody] ItemRequest dto)
         {
-            if (dto == null) return BadRequest();
+            if (dto == null) return BadRequest("Data is Not Submitted !!");
 
-            var productExists = await _unitOfWork.Repository<Product>().GetByIdAsync(dto.ProductId);
+            var result = await _itemservice.CreateAsync(dto);
 
-            if (productExists == null)
-                return NotFound($"No Product found with ID {dto.ProductId}");
+            if (result == null) return NotFound($"No Product found with ID {dto.ProductId}");
 
-            var item = new Item
-            {
-                ProductId = dto.ProductId,
-                Quantity = dto.Quantity
-            };
-
-            await _unitOfWork.Repository<Item>().AddAsync(item);
-
-            await _unitOfWork.Commit();
-
-            return CreatedAtAction(nameof(GetById), new { id = item.Id }, item);
+            return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
         }
+
+
 
         [HttpPut("{id}")]
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> UpdateItem(int id, [FromBody] ItemRequest dto)
         {
-            var itemRepo = _unitOfWork.Repository<Item>();
-            var item = await itemRepo.GetByIdAsync(id);
+            if (dto == null) return BadRequest();
 
-            if (item == null) return NotFound();
+            var result = await _itemservice.UpdateAsync(id, dto);
 
-            item.ProductId = dto.ProductId;
-            item.Quantity = dto.Quantity;
+            if (result == null) return NotFound($"Item with ID {id} not found.");
 
-            await itemRepo.UpdateAsync(item);
-            await _unitOfWork.Commit();
-
-            return Ok(item);
+            return Ok(result);
         }
 
-        [HttpDelete("{id:int}")]
+
+        [HttpDelete("{id}")]
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Delete(int id)
         {
-            var itemRepo = _unitOfWork.Repository<Item>();
-            var existing = await itemRepo.GetByIdAsync(id);
+            var success = await _itemservice.DeleteAsync(id);
 
-            if (existing == null) return NotFound();
+            if (!success)
+                return NotFound(new { Message = $"Item with ID {id} not found." });
 
-            await itemRepo.DeleteAsync(id);
-            await _unitOfWork.Commit();
-
-            return Ok(new { Message = $"Item with ID {id} deleted successfully." });
+            return NoContent();
         }
     }
 }
